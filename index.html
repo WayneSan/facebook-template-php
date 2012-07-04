@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html xmlns:fb="http://ogp.me/ns/fb#" lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=2.0, user-scalable=yes" />
+
+    <link rel="stylesheet" href="stylesheets/screen.css" media="Screen" type="text/css" />
+    <link rel="stylesheet" href="stylesheets/mobile.css" media="handheld, only screen and (max-width: 480px), only screen and (max-device-width: 480px)" type="text/css" />
+
+    <!--[if IEMobile]>
+    <link rel="stylesheet" href="mobile.css" media="screen" type="text/css"  />
+    <![endif]-->
+
+    <script type="text/javascript" src="./javascript/jquery-1.7.1.min.js"></script>
+
+    <script type="text/javascript">
+      // Enforce https on production
+      (function() {
+        var loc = window.location;
+        if (loc.protocol !== 'https:') {
+          loc.href = loc.href.replace(/^http:/, 'https:');
+        }
+      });
+
+      function logResponse(response) {
+        if (console && console.log) {
+          console.log('The response was', response);
+        }
+      }
+
+      $(function(){
+        // Set up so we handle click on the buttons
+        $('#postToWall').click(function() {
+          FB.ui(
+            {
+              method : 'feed',
+              link   : $(this).attr('data-url')
+            },
+            function (response) {
+              // If response is null the user canceled the dialog
+              if (response != null) {
+                logResponse(response);
+              }
+            }
+          );
+        });
+
+        $('#sendToFriends').click(function() {
+          FB.ui(
+            {
+              method : 'send',
+              link   : $(this).attr('data-url')
+            },
+            function (response) {
+              // If response is null the user canceled the dialog
+              if (response != null) {
+                logResponse(response);
+              }
+            }
+          );
+        });
+
+        $('#sendRequest').click(function() {
+          FB.ui(
+            {
+              method  : 'apprequests',
+              message : $(this).attr('data-message')
+            },
+            function (response) {
+              // If response is null the user canceled the dialog
+              if (response != null) {
+                logResponse(response);
+              }
+            }
+          );
+        });
+      });
+    </script>
+
+    <!--[if IE]>
+      <script type="text/javascript">
+        var tags = ['header', 'section'];
+        while(tags.length)
+          document.createElement(tags.pop());
+      </script>
+    <![endif]-->
+  </head>
+  <body>
+    <div id="fb-root"></div>
+    <script type="text/javascript">
+      function pictureUrl(id, type) {
+        return '//graph.facebook.com/'+id+'/picture?type='+(type || 'normal');
+      }
+      
+      function sampleItems(target, apiUrl) {
+        FB.api(apiUrl, function(resp) {
+          logResponse(resp);
+          $.each(resp.data, function(i, data) {
+            //logResponse(data.name+': '+data.id);
+            var $img = $('<img />').attr('src', pictureUrl(data.id || data.uid, 'square')).attr('alt', data.name);
+            var $a = $('<a></a>').attr('href', '//www.facebook.com/'+(data.id || data.uid)).attr('target', '_top');
+            $a.append($img).append(data.name);
+            $('<li></li>').append($a).appendTo(target);
+          });
+        });
+      }
+      
+      function samplePhotos(target, apiUrl) {
+        FB.api(apiUrl, function(resp) {
+          logResponse(resp);
+          $.each(resp.data, function(i, data) {
+            //logResponse(data.id+': '+data.picture);
+            var $a = $('<a></a>').attr('href', data.link).attr('target', '_top');
+            var $li = $('<li></li>').css('background-image', 'url('+data.picture+')');
+            $li.append($a).appendTo(target);
+          });
+          $(target).find('li:nth-child(4n+1)').addClass('first-column');
+        });
+      }
+      
+      function checkLogin(response) {
+        if (response.status === 'connected') {
+          // the user is logged in and has authenticated your
+          // app, and response.authResponse supplies
+          // the user's ID, a valid access token, a signed
+          // request, and the time the access token 
+          // and signed request each expire
+          //var uid = response.authResponse.userID;
+          //var accessToken = response.authResponse.accessToken;
+
+          FB.api('/me?fields=name', function(resp) {
+            logResponse(resp);
+            $('header #name').html(resp.name);
+            $('header #picture').css('background-image', 'url('+pictureUrl(resp.id)+')');
+          });
+          
+          FB.api('/'+FB.appId, function(resp) {
+            logResponse(resp);
+            document.title = resp.name;
+            $('#app-link').attr('href', resp.link).html(resp.name);
+            $('.facebook-button').attr('data-url', FB.appUrl);
+          });
+          
+          samplePhotos('#photos ul.photos', '/me/photos?limit=16');
+          
+          sampleItems('#friends ul.friends', '/me/friends?limit=4');
+          sampleItems('#likes ul.things', '/me/likes?limit=4');
+
+          var fql = 'SELECT uid, name FROM user WHERE uid IN(SELECT uid2 FROM friend WHERE uid1 = me()) AND is_app_user = 1';
+          sampleItems('#app-friends ul.friends', '/fql?q='+escape(fql));
+          
+          $('header #picture').show();
+          $('header #profile').show();
+          $('header #login').hide();
+          $('#samples').show();
+        } else {
+          $('header #picture').hide();
+          $('header #profile').hide();
+          $('header #login').show();
+          $('#samples').hide();
+        }
+      }
+
+      window.fbAsyncInit = function() {
+        function initFB(appId) {
+          FB.appId = appId;
+          FB.appUrl = window.location.href.match( /^(.+\/)[^\/]*$/ )[1];
+
+          FB.init({
+            appId      : FB.appId, // App ID
+            channelUrl : FB.appUrl+'channel.html', // Channel File
+            status     : true, // check login status
+            cookie     : true, // enable cookies to allow the server to access the session
+            xfbml      : true // parse XFBML
+          });
+          
+          // Listen to the auth.login which will be called when the user logs in
+          // using the Login button
+          FB.Event.subscribe('auth.login', checkLogin);
+          
+          FB.Canvas.setAutoGrow();
+          
+          // Additional initialization code here
+          FB.getLoginStatus(checkLogin);
+        }
+
+        //initFB('000000000000000');  // set appID directly
+        $.get('AppInfo.php?appID', initFB);
+      };
+
+      // Load the SDK Asynchronously
+      (function(d, s, id) {
+        var js, fjs = d.getElementsByTagName(s)[0];
+        if (d.getElementById(id)) return;
+        js = d.createElement(s); js.id = id;
+        js.src = "//connect.facebook.net/en_US/all.js";
+        fjs.parentNode.insertBefore(js, fjs);
+      }(document, 'script', 'facebook-jssdk'));
+    </script>
+
+    <header class="clearfix">
+      <p id="picture" style="display:none"></p>
+
+      <div id="profile" style="display:none">
+        <h1>Welcome, <strong><span id="name"></span></strong></h1>
+        <p class="tagline">
+          This is your app
+          <a id="app-link" href="" target="_top"></a>
+        </p>
+
+        <div id="share-app">
+          <p>Share your app:</p>
+          <ul>
+            <li>
+              <a href="#" class="facebook-button" id="postToWall" data-url="">
+                <span class="plus">Post to Wall</span>
+              </a>
+            </li>
+            <li>
+              <a href="#" class="facebook-button speech-bubble" id="sendToFriends" data-url="">
+                <span class="speech-bubble">Send Message</span>
+              </a>
+            </li>
+            <li>
+              <a href="#" class="facebook-button apprequests" id="sendRequest" data-message="Test this awesome app">
+                <span class="apprequests">Send Requests</span>
+              </a>
+            </li>
+          </ul>
+        </div>
+      </div>
+      <div id="login" style="display:hidden">
+        <h1>Welcome</h1>
+        <div class="fb-login-button" data-scope="user_likes,user_photos"></div>
+      </div>
+    </header>
+
+    <section id="get-started">
+      <p>Welcome to your Facebook app, running on <span>heroku</span>!</p>
+      <a href="https://devcenter.heroku.com/articles/facebook" target="_top" class="button">Learn How to Edit This App</a>
+    </section>
+
+    <section id="samples" class="clearfix" style="display:none">
+      <h1>Examples of the Facebook Graph API</h1>
+
+      <div id="friends" class="list">
+        <h3>A few of your friends</h3>
+        <ul class="friends"></ul>
+      </div>
+
+      <div id="photos" class="list inline">
+        <h3>Recent photos</h3>
+        <ul class="photos"></ul>
+      </div>
+
+      <div id="likes" class="list">
+        <h3>Things you like</h3>
+        <ul class="things"></ul>
+      </div>
+
+      <div id="app-friends" class="list">
+        <h3>Friends using this app</h3>
+        <ul class="friends"></ul>
+      </div>
+    </section>
+
+    <section id="guides" class="clearfix">
+      <h1>Learn More About Heroku &amp; Facebook Apps</h1>
+      <ul>
+        <li>
+          <a href="https://www.heroku.com/?utm_source=facebook&utm_medium=app&utm_campaign=fb_integration" target="_top" class="icon heroku">Heroku</a>
+          <p>Learn more about <a href="https://www.heroku.com/?utm_source=facebook&utm_medium=app&utm_campaign=fb_integration" target="_top">Heroku</a>, or read developer docs in the Heroku <a href="https://devcenter.heroku.com/" target="_top">Dev Center</a>.</p>
+        </li>
+        <li>
+          <a href="https://developers.facebook.com/docs/guides/web/" target="_top" class="icon websites">Websites</a>
+          <p>
+            Drive growth and engagement on your site with
+            Facebook Login and Social Plugins.
+          </p>
+        </li>
+        <li>
+          <a href="https://developers.facebook.com/docs/guides/mobile/" target="_top" class="icon mobile-apps">Mobile Apps</a>
+          <p>
+            Integrate with our core experience by building apps
+            that operate within Facebook.
+          </p>
+        </li>
+        <li>
+          <a href="https://developers.facebook.com/docs/guides/canvas/" target="_top" class="icon apps-on-facebook">Apps on Facebook</a>
+          <p>Let users find and connect to their friends in mobile apps and games.</p>
+        </li>
+      </ul>
+    </section>
+  </body>
+</html>

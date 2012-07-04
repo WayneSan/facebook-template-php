@@ -47,3 +47,8 @@ class AppInfo {
   }
 
 }
+
+if (realpath($_SERVER["SCRIPT_FILENAME"]) === __FILE__ &&
+      method_exists(AppInfo, $_SERVER['QUERY_STRING'])) {
+  echo AppInfo::$_SERVER['QUERY_STRING']();
+}
